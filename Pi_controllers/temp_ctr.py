@@ -1,9 +1,8 @@
 from subprocess import Popen, PIPE
 import RPi.GPIO as GPIO 
-from time import sleep
 from collections import deque
-import getopt
-import sys
+import syslog
+
 
 class fan_control():
     
@@ -16,10 +15,12 @@ class fan_control():
     def off(self):
         GPIO.output(self.pin, False)
         self.state = False
+        syslog.syslog(syslog.LOG_INFO, "Cooling FAN - OFF")
     
     def on(self):
         GPIO.output(self.pin, True)
         self.state = True
+        syslog.syslog(syslog.LOG_INFO, "Cooling FAN - ON")
     
     def is_on(self):
         return self.state
@@ -27,12 +28,11 @@ class fan_control():
 
 class cpu_monitor():
 
-    def __init__(self, trigger_temp=60, delay=5):
+    def __init__(self, trigger_temp=60, buffer=5):
         self.trigger_temp = trigger_temp
         self.temp = self._temp()
-        self.temperatures = [self.temp for i in range(delay)]
+        self.temperatures = [self.temp for i in range(buffer)]
         
-    
     def _temp(self):
         process = Popen(['vcgencmd', 'measure_temp'], stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
@@ -48,31 +48,3 @@ class cpu_monitor():
         self.temperatures.append(self._temp())
         self.temp = sum(self.temperatures) / len(self.temperatures)
         return self.temp
-        
-
-    
-def main():
-    trigger_temp = 60
-    delay = 5
-    pin = 16
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, 't:d:p:')
-    for key, value in opts:
-        if(key is 't'):
-            trigger_temp = value
-        if(key is 'd'):
-            delay = value
-        if(key is 'p'):
-            pin = value
-    fan = fan_control(pin)
-    monitor = cpu_monitor(trigger_temp=trigger_temp, delay=delay)
-    while True:
-        if(monitor.update() > trigger_temp):
-            fan.on()
-        else:
-            fan.off()
-        sleep(1)
-
-
-if __name__ == "__main__":
-    main()
